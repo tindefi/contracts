@@ -25,6 +25,7 @@ interface ITokenVesting{
 /** TO-DO
     - Número de compradores en la fase (Individualizado) *
     - Target (inversión en $) para finalizar la ronda *
+    - Whitelist
 */
 
 contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
@@ -42,6 +43,7 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
     mapping(uint256 => uint256) private weiPerTokenPerPhase;
     mapping(uint256 => uint256) private totalTokensSalePerPhase;
     mapping(uint256 => uint256) private tokensSoldPerPhase;
+    mapping(address => bool) private userWhitelisted;
     uint256 public currentPhase;
     bool private icoEnded;
 
@@ -50,17 +52,22 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
 
     address private BUSD;
 
-    event weiPerTokenChanged(uint256 phase, uint256 weiPerToken);
-    event totalTokensSaleChanged(uint256 phase, uint256 totalTokensSale);
-    event totalTokensSoldChanged(uint256 phase, uint256 totalTokensSold);
-    event icoStatus(bool icoStatus);
-    event busdContractChanged(address BUSD);
-    event phaseAdded(uint256 phase ,uint256 weiPerToken, uint256 totalTokensSale);
-    event phaseChanged(uint256 newPhase);
-    event tokensBought(uint256 tokenAmount, address buyer);
+    event weiPerTokenChanged(uint256 indexed phase, uint256 indexed weiPerToken);
+    event totalTokensSaleChanged(uint256 indexed phase, uint256 indexed totalTokensSale);
+    event totalTokensSoldChanged(uint256 indexed phase, uint256 indexed totalTokensSold);
+    event icoStatus(bool indexed icoStatus);
+    event busdContractChanged(address indexed BUSD);
+    event phaseAdded(uint256 indexed phase ,uint256 weiPerToken, uint256 indexed totalTokensSale);
+    event phaseChanged(uint256 indexed newPhase);
+    event tokensBought(uint256 indexed tokenAmount, address indexed buyer);
 
     modifier whenICOActive(){
         assert(!icoEnded);
+        _;
+    }
+
+    modifier userIsWhitelisted(){
+        assert(userWhitelisted[msg.sender] == true);
         _;
     }
 
@@ -85,7 +92,7 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
         _unpause();
     }
 
-    function buyTokens(uint256 tokenAmount) public whenICOActive nonReentrant{
+    function buyTokens(uint256 tokenAmount) public whenICOActive userIsWhitelisted nonReentrant{
         require(tokensSoldPerPhase[currentPhase] + tokenAmount <= totalTokensSalePerPhase[currentPhase], "Max tokens sold for this phase surpassed");
         require(TinDeFiToken.balanceOf(vestingAddress) >= tokenAmount, "Not enough tokens in the contract, transfer more tokens to vesting contract");
 
@@ -102,6 +109,24 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
         emit tokensBought(tokenAmount, msg.sender);
     }
 
+    function getRate(uint256 tokenAmount) public view returns(uint256){
+        uint256 amountBUSDToBuy = tokenAmount * weiPerTokenPerPhase[currentPhase];
+        return amountBUSDToBuy;
+    }
+
+    function getBUSD() public view returns(uint256){
+        return IERC20(BUSD).balanceOf(msg.sender);
+    }
+
+    function addUserWhitelist(address _user) public onlyRole(ADMIN_ROLE){
+        require(_user != address(0));
+        userWhitelisted[_user] = true;
+    }
+
+    function removeUserWhiteList(address _user) public onlyRole(ADMIN_ROLE){
+        require(_user != address(0));
+        userWhitelisted[_user] = false;
+    }
     
     function getAdminAddress() external view returns(address){
         return TokenVesting.getAdminAddress();

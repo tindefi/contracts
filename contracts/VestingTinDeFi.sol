@@ -39,6 +39,15 @@ contract TokenVesting is Ownable, ReentrancyGuard{
     // address of the ERC20 token
     IERC20 immutable private _token;
 
+    // cliff period in seconds
+    uint256 private cliff;
+    // start time of the vesting period
+    uint256 private start;
+    // duration of the vesting period in seconds
+    uint256 private duration;
+    // duration of a slice period for the vesting in seconds
+    uint256 private slicePeriodSeconds;
+
     bytes32[] private vestingSchedulesIds;
     mapping(bytes32 => VestingSchedule) private vestingSchedules;
     uint256 private vestingSchedulesTotalAmount;
@@ -58,7 +67,7 @@ contract TokenVesting is Ownable, ReentrancyGuard{
     }
 
     modifier onlyOwnerAdmin(){
-        require(msg.sender == owner() || msg.sender == adminAddress);
+        require(msg.sender == owner() || msg.sender == adminAddress, "Schedule can only be created from the ICO");
         _;
     }
 
@@ -75,16 +84,39 @@ contract TokenVesting is Ownable, ReentrancyGuard{
      * @dev Creates a vesting contract.
      * @param token_ address of the ERC20 token contract
      */
-    constructor(address token_) {
+    constructor(address token_, uint256 _start, uint256 _cliff, uint256 _duration, uint256 _slice) {
         require(token_ != address(0x0));
         _token = IERC20(token_);
         adminAddress = msg.sender;
+        start= _start;
+        cliff = _cliff;
+        duration = _duration;
+        slicePeriodSeconds = _slice;
     }
 
     receive() external payable {}
 
     fallback() external payable {}
 
+    function modifyStartDate(uint256 _newStart) public onlyOwner{
+        require(_newStart > 0, "date has to be superior to 0");
+        start = _newStart;
+    }
+
+    function modifyCliff(uint256 _newCliff) public onlyOwner{
+        require(_newCliff >= 0, "Cliff cant be negative");
+        cliff = _newCliff;
+    }
+
+    function modifyDuration(uint256 _newDuration) public onlyOwner{
+        require(_newDuration > 0, "Duration has to be superior to 0");
+        duration = _newDuration;
+    }
+
+    function modifySlicePeriodSeconds(uint256 _newSlicePeriodSeconds) public onlyOwner{
+        require(_newSlicePeriodSeconds > 0, "Duration has to be superior to 0");
+        slicePeriodSeconds = _newSlicePeriodSeconds;
+    }
     /**
     * @dev Returns the number of vesting schedules associated to a beneficiary.
     * @return the number of vesting schedules
@@ -174,11 +206,11 @@ contract TokenVesting is Ownable, ReentrancyGuard{
         require(_amount > 0, "TokenVesting: amount must be > 0");
         require(_slicePeriodSeconds >= 1, "TokenVesting: slicePeriodSeconds must be >= 1");
         bytes32 vestingScheduleId = this.computeNextVestingScheduleIdForHolder(_beneficiary);
-        uint256 cliff = _start.add(_cliff);
+        uint256 cliffCalc = _start.add(_cliff);
         vestingSchedules[vestingScheduleId] = VestingSchedule(
             true,
             _beneficiary,
-            cliff,
+            cliffCalc,
             _start,
             _duration,
             _slicePeriodSeconds,
@@ -341,23 +373,39 @@ contract TokenVesting is Ownable, ReentrancyGuard{
     view
     returns(uint256){
         uint256 currentTime = getCurrentTime();
-        if ((currentTime < vestingSchedule.cliff) || vestingSchedule.revoked == true) {
+        if ((currentTime < cliff) || vestingSchedule.revoked == true) {
             return 0;
-        } else if (currentTime >= vestingSchedule.start.add(vestingSchedule.duration)) {
+        } else if (currentTime >= start.add(duration)) {
             return vestingSchedule.amountTotal.sub(vestingSchedule.released);
         } else {
-            uint256 timeFromStart = currentTime.sub(vestingSchedule.start);
-            uint secondsPerSlice = vestingSchedule.slicePeriodSeconds;
+            uint256 timeFromStart = currentTime.sub(start);
+            uint secondsPerSlice = slicePeriodSeconds;
             uint256 vestedSlicePeriods = timeFromStart.div(secondsPerSlice);
             uint256 vestedSeconds = vestedSlicePeriods.mul(secondsPerSlice);
-            uint256 vestedAmount = vestingSchedule.amountTotal.mul(vestedSeconds).div(vestingSchedule.duration);
+            uint256 vestedAmount = vestingSchedule.amountTotal.mul(vestedSeconds).div(duration);
             vestedAmount = vestedAmount.sub(vestingSchedule.released);
             return vestedAmount;
         }
     }
 
+    function getDuration()
+        public
+        virtual
+        view
+        returns(uint256){
+        return duration;
+    }
+
+    function getStart()
+        public
+        virtual
+        view
+        returns(uint256){
+        return start;
+    }
+
     function getCurrentTime()
-        internal
+        public
         virtual
         view
         returns(uint256){
