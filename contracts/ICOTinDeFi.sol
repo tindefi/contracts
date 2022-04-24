@@ -43,7 +43,7 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
     mapping(uint256 => uint256) private weiPerTokenPerPhase;
     mapping(uint256 => uint256) private totalTokensSalePerPhase;
     mapping(uint256 => uint256) private tokensSoldPerPhase;
-    mapping(address => bool) private userWhitelisted;
+    mapping(string => bool) private buyCodes;
     uint256 public currentPhase;
     bool private icoEnded;
 
@@ -62,12 +62,12 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
     event tokensBought(uint256 indexed tokenAmount, address indexed buyer);
 
     modifier whenICOActive(){
-        assert(!icoEnded);
+        require(!icoEnded, "ICO has ended");
         _;
     }
 
-    modifier userIsWhitelisted(){
-        assert(userWhitelisted[msg.sender] == true);
+    modifier buyCodeCorrect(string calldata code){
+        require(buyCodes[code] == true, "The code provided is not correct");
         _;
     }
 
@@ -92,7 +92,7 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
         _unpause();
     }
 
-    function buyTokens(uint256 tokenAmount) public whenICOActive userIsWhitelisted nonReentrant{
+    function buyTokens(uint256 tokenAmount, string calldata buyCode) public whenICOActive buyCodeCorrect(buyCode) nonReentrant{
         require(tokensSoldPerPhase[currentPhase] + tokenAmount <= totalTokensSalePerPhase[currentPhase], "Max tokens sold for this phase surpassed");
         require(TinDeFiToken.balanceOf(vestingAddress) >= tokenAmount, "Not enough tokens in the contract, transfer more tokens to vesting contract");
 
@@ -118,14 +118,12 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
         return IERC20(BUSD).balanceOf(msg.sender);
     }
 
-    function addUserWhitelist(address _user) public onlyRole(ADMIN_ROLE){
-        require(_user != address(0));
-        userWhitelisted[_user] = true;
+    function addBuyCode(string calldata _code) public onlyRole(ADMIN_ROLE){
+        buyCodes[_code] = true;
     }
 
-    function removeUserWhiteList(address _user) public onlyRole(ADMIN_ROLE){
-        require(_user != address(0));
-        userWhitelisted[_user] = false;
+    function removeBuyCode(string calldata _code) public onlyRole(ADMIN_ROLE){
+        buyCodes[_code] = false;
     }
     
     function getAdminAddress() external view returns(address){
