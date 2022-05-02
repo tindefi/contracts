@@ -9,7 +9,7 @@ import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/security/Pausable.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-contract Tindefi is ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pausable, ReentrancyGuard {
+contract Tin_defi is ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pausable, ReentrancyGuard {
 
     bytes32 public constant SNAPSHOT_ROLE = keccak256("SNAPSHOT_ROLE");
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
@@ -23,7 +23,7 @@ contract Tindefi is ERC20, ERC20Burnable, ERC20Snapshot, AccessControl, Pausable
     event taxChanged(uint256 newTax);
     event taxWalletChanged(address newTaxWallet);
 
-    constructor(uint256 _tax, address _taxWallet, uint256 _maxCap) ERC20("Tindefi", "TIN"){
+    constructor(uint256 _tax, address _taxWallet, uint256 _maxCap) ERC20("Tin Defi", "TIN"){
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         _grantRole(SNAPSHOT_ROLE, msg.sender);
         _grantRole(PAUSER_ROLE, msg.sender);

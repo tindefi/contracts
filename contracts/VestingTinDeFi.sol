@@ -18,14 +18,6 @@ contract TokenVesting is Ownable, ReentrancyGuard{
         bool initialized;
         // beneficiary of tokens after they are released
         address  beneficiary;
-        // cliff period in seconds
-        uint256  cliff;
-        // start time of the vesting period
-        uint256  start;
-        // duration of the vesting period in seconds
-        uint256  duration;
-        // duration of a slice period for the vesting in seconds
-        uint256 slicePeriodSeconds;
         // whether or not the vesting is revocable
         bool  revocable;
         // total amount of tokens to be released at the end of the vesting
@@ -178,21 +170,13 @@ contract TokenVesting is Ownable, ReentrancyGuard{
     }
 
     /**
-    * @notice Creates a new vesting schedule for a beneficiary.
+    * @notice Creates a new vesting schedule for a beneficiary, in case the beneficiary allready has one updates the amount and if the last schedule has be revoked, creates a new one.
     * @param _beneficiary address of the beneficiary to whom vested tokens are transferred
-    * @param _start start time of the vesting period
-    * @param _cliff duration in seconds of the cliff in which tokens will begin to vest
-    * @param _duration duration in seconds of the period in which the tokens will vest
-    * @param _slicePeriodSeconds duration of a slice period for the vesting in seconds
     * @param _revocable whether the vesting is revocable or not
     * @param _amount total amount of tokens to be released at the end of the vesting
     */
     function createVestingSchedule(
         address _beneficiary,
-        uint256 _start,
-        uint256 _cliff,
-        uint256 _duration,
-        uint256 _slicePeriodSeconds,
         bool _revocable,
         uint256 _amount
     )
@@ -202,27 +186,47 @@ contract TokenVesting is Ownable, ReentrancyGuard{
             this.getWithdrawableAmount() >= _amount,
             "TokenVesting: cannot create vesting schedule because not sufficient tokens"
         );
-        require(_duration > 0, "TokenVesting: duration must be > 0");
         require(_amount > 0, "TokenVesting: amount must be > 0");
-        require(_slicePeriodSeconds >= 1, "TokenVesting: slicePeriodSeconds must be >= 1");
-        bytes32 vestingScheduleId = this.computeNextVestingScheduleIdForHolder(_beneficiary);
-        uint256 cliffCalc = _start.add(_cliff);
-        vestingSchedules[vestingScheduleId] = VestingSchedule(
-            true,
-            _beneficiary,
-            cliffCalc,
-            _start,
-            _duration,
-            _slicePeriodSeconds,
-            _revocable,
-            _amount,
-            0,
-            false
-        );
-        vestingSchedulesTotalAmount = vestingSchedulesTotalAmount.add(_amount);
-        vestingSchedulesIds.push(vestingScheduleId);
         uint256 currentVestingCount = holdersVestingCount[_beneficiary];
-        holdersVestingCount[_beneficiary] = currentVestingCount.add(1);
+        if(currentVestingCount>0){
+            VestingSchedule memory currentVesting = this.getLastVestingScheduleForHolder(_beneficiary);
+            if(currentVesting.revoked){
+                newVestingSchedule(_beneficiary, _revocable, _amount, currentVestingCount);
+            }else{
+                bytes32 vestingScheduleId = computeVestingScheduleIdForAddressAndIndex(_beneficiary, currentVestingCount - 1);
+                vestingSchedules[vestingScheduleId] = VestingSchedule(
+                    true,
+                    currentVesting.beneficiary,
+                    currentVesting.revocable,
+                    _amount + currentVesting.amountTotal,
+                    currentVesting.released,
+                    currentVesting.revoked
+                );
+            }
+        }else{
+            newVestingSchedule(_beneficiary, _revocable, _amount, currentVestingCount);
+        }
+        vestingSchedulesTotalAmount = vestingSchedulesTotalAmount.add(_amount);
+    }
+
+    function newVestingSchedule(
+        address _beneficiary,
+        bool _revocable,
+        uint256 _amount,
+        uint256 currentVestingCount)
+    private
+    {
+        bytes32 vestingScheduleId = this.computeNextVestingScheduleIdForHolder(_beneficiary);
+            vestingSchedules[vestingScheduleId] = VestingSchedule(
+                true,
+                _beneficiary,
+                _revocable,
+                _amount,
+                0,
+                false
+            );
+            vestingSchedulesIds.push(vestingScheduleId);
+            holdersVestingCount[_beneficiary] = currentVestingCount.add(1);
     }
 
     /**

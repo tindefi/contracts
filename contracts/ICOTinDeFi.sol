@@ -10,10 +10,6 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 interface ITokenVesting{
     function createVestingSchedule(
         address _beneficiary,
-        uint256 _start,
-        uint256 _cliff,
-        uint256 _duration,
-        uint256 _slicePeriodSeconds,
         bool _revocable,
         uint256 _amount
     ) external;
@@ -104,7 +100,7 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
         tokensSoldPerPhase[currentPhase] += tokenAmount;
         buyersPerPhase[currentPhase] += 1;
         totalRaised += amountBUSDToBuy;
-        TokenVesting.createVestingSchedule(msg.sender, block.timestamp, 0, 100000, 10, true, tokenAmount);
+        TokenVesting.createVestingSchedule(msg.sender, true, tokenAmount);
 
         emit tokensBought(tokenAmount, msg.sender);
     }
