@@ -128,7 +128,7 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
         uint256 busdReferral = (((_amountBusd * _refInfo.totalPerc) / 100) * _refInfo.percBUSD) / 100;
         uint256 busdProtocol = _amountBusd - busdReferral;
 
-        uint256 tinReferral = (_tokenAmount * _refInfo.percTokens) / 100;
+        uint256 tinReferral = (((_tokenAmount * _refInfo.totalPerc) / 100) * _refInfo.percTokens) / 100;
         uint256 tinBuyer = _tokenAmount - tinReferral;
 
         IERC20(BUSD).transferFrom(msg.sender, _refInfo.reciever, busdReferral);
