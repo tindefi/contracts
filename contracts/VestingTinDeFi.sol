@@ -43,9 +43,9 @@ contract TokenVesting is Ownable, ReentrancyGuard{
     bytes32[] private vestingSchedulesIds;
     mapping(bytes32 => VestingSchedule) private vestingSchedules;
     uint256 private vestingSchedulesTotalAmount;
-    mapping(address => uint256) private holdersVestingCount;
+    mapping(address => uint256) public holdersVestingCount;
 
-    address private adminAddress;
+    mapping(address => bool) private isAdmin;
 
     event Released(uint256 amount);
     event Revoked();
@@ -59,7 +59,7 @@ contract TokenVesting is Ownable, ReentrancyGuard{
     }
 
     modifier onlyOwnerAdmin(){
-        require(msg.sender == owner() || msg.sender == adminAddress, "Schedule can only be created from the ICO");
+        require(msg.sender == owner() || isAdmin[msg.sender], "Schedule can only be created from the ICO");
         _;
     }
 
@@ -79,7 +79,7 @@ contract TokenVesting is Ownable, ReentrancyGuard{
     constructor(address token_, uint256 _start, uint256 _cliff, uint256 _duration, uint256 _slice) {
         require(token_ != address(0x0));
         _token = IERC20(token_);
-        adminAddress = msg.sender;
+        isAdmin[msg.sender] = true;
         start= _start;
         cliff = _cliff;
         duration = _duration;
@@ -235,7 +235,7 @@ contract TokenVesting is Ownable, ReentrancyGuard{
     */
     function revoke(bytes32 vestingScheduleId)
         public
-        onlyOwner
+        onlyOwnerAdmin
         onlyIfVestingScheduleNotRevoked(vestingScheduleId){
         VestingSchedule storage vestingSchedule = vestingSchedules[vestingScheduleId];
         require(vestingSchedule.revocable == true, "TokenVesting: vesting is not revocable");
@@ -287,9 +287,9 @@ contract TokenVesting is Ownable, ReentrancyGuard{
         _token.safeTransfer(beneficiaryPayable, amount);
     }
 
-    function changeAdmin(address newAdmin) public onlyOwnerAdmin{
+    function addAdmin(address newAdmin) public onlyOwnerAdmin{
         require(newAdmin != address(0x0), 'Cant change to address 0');
-        adminAddress = newAdmin;
+        isAdmin[newAdmin] = true;
     }
 
     /**
