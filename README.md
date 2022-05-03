@@ -1,6 +1,6 @@
-# Basic Sample Hardhat Project
+# TIN DEFI CONTRACTS
 
-This project demonstrates a basic Hardhat use case. It comes with a sample contract, a test for that contract, a sample script that deploys that contract, and an example of a task implementation, which simply lists the available accounts.
+This directory contains all the contracts for the ICO and vesting of the token Tin Defi
 
 Try running some of the following tasks:
 
