@@ -123,7 +123,7 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
         _unpause();
     }
 
-    function buyTokens(uint256 tokenAmount, string calldata buyCode) public whenICOActive buyCodeCorrect(buyCode) nonReentrant{
+    function buyTokens(uint256 tokenAmount, string calldata buyCode) public whenICOActive buyCodeCorrect(buyCode) nonReentrant whenNotPaused{
         require(tokensSoldPerPhase[currentPhase] + tokenAmount <= totalTokensSalePerPhase[currentPhase], "Max tokens sold for this phase surpassed");
         require(TinDeFiToken.balanceOf(vestingAddress) >= tokenAmount, "Not enough tokens in the contract, transfer more tokens to vesting contract");
 
