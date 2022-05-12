@@ -29,8 +29,11 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+
     bytes32 public constant NORMAL_REFERRAL = keccak256("NORMAL_REFERRAL");
     bytes32 public constant CAPITAL_REFERRAL = keccak256("CAPITAL_REFERRAL");
+    bytes32 public constant SUB_REFERRAL_CAPITAL = keccak256("SUB_REFERRAL_CAPITAL");
+    bytes32 public constant SUB_REFERRAL_NORMAL = keccak256("SUB_REFERRAL_NORMAL");
 
     IERC20 immutable private TinDeFiToken;
     ITokenVesting private TokenVesting;
@@ -45,6 +48,8 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
         uint256 percTokens;
         uint256 percBUSD;
         bool active;
+        address superCode;
+        uint256 superCut;
     }
 
     struct buyInfo{
@@ -90,7 +95,7 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
     }
 
     modifier buyCodeCorrect(string calldata code){
-        require(buyCodeInactive || referrals[code].active, "The code provided is not correct");
+        require(buyCodeInactive || referrals[code].active, "The code provided is not correct or active");
         _;
     }
 
@@ -101,6 +106,7 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
         
         _grantRole(ADMIN_ROLE, msg.sender);
         _grantRole(PAUSER_ROLE, msg.sender);
+        _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
 
         ICOWallet = _ICOWallet;
         icoEnded = false;
@@ -128,7 +134,13 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
             buyCodeCapital(refInfo, amountBUSDToBuy, tokenAmount);
         }else if(refInfo.refType == NORMAL_REFERRAL){
             buyCodeNormal(refInfo, amountBUSDToBuy, tokenAmount);
-        }else{
+        }else if(refInfo.refType == SUB_REFERRAL_CAPITAL){
+            buyCodeNormal(refInfo, amountBUSDToBuy, tokenAmount);
+        }else if(refInfo.refType == SUB_REFERRAL_NORMAL){
+            buyCodeNormal(refInfo, amountBUSDToBuy, tokenAmount);
+        }
+        else{
+            TokenVesting.createVestingSchedule(msg.sender, true, tokenAmount);
             IERC20(BUSD).transferFrom(msg.sender, ICOWallet, amountBUSDToBuy);
             buysPerUser[msg.sender].push(buyInfo(block.timestamp, weiPerTokenPerPhase[currentPhase], amountBUSDToBuy, tokenAmount));
         }
@@ -148,10 +160,14 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
         uint256 tinReferral = ((totalToDeductTokens) * _refInfo.percTokens) / 100;
         uint256 tinBuyer = _tokenAmount - totalToDeductTokens;
 
-        IERC20(BUSD).transferFrom(msg.sender, _refInfo.reciever, busdReferral);
+        if(busdReferral > 0){
+            IERC20(BUSD).transferFrom(msg.sender, _refInfo.reciever, busdReferral);
+        }
         IERC20(BUSD).transferFrom(msg.sender, ICOWallet, busdProtocol);
 
-        TokenVesting.createVestingSchedule(_refInfo.reciever, true, tinReferral);
+        if(tinReferral > 0){
+            TokenVesting.createVestingSchedule(_refInfo.reciever, true, tinReferral);
+        }
         TokenVesting.createVestingSchedule(msg.sender, true, tinBuyer);
 
         buysPerUser[msg.sender].push(buyInfo(block.timestamp, weiPerTokenPerPhase[currentPhase], _amountBusd, tinBuyer));
@@ -161,12 +177,75 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
         uint256 busdReferral = (((_amountBusd * _refInfo.totalPerc) / 100) * _refInfo.percBUSD) / 100;
         uint256 busdProtocol = _amountBusd - busdReferral;
 
-        IERC20(BUSD).transferFrom(msg.sender, _refInfo.reciever, busdReferral);
+        uint256 totalToDeductTokens = (_tokenAmount * _refInfo.totalPerc) / 100;
+        uint256 tinReferral = ((totalToDeductTokens) * _refInfo.percTokens) / 100;
+        uint256 tinBuyer = _tokenAmount;
+
+        if(busdReferral > 0){
+            IERC20(BUSD).transferFrom(msg.sender, _refInfo.reciever, busdReferral);
+        }
         IERC20(BUSD).transferFrom(msg.sender, ICOWallet, busdProtocol);
 
-        TokenVesting.createVestingSchedule(msg.sender, true, _tokenAmount);
+        if(tinReferral > 0){
+            TokenVesting.createVestingSchedule(_refInfo.reciever, true, tinReferral);
+        }
+        TokenVesting.createVestingSchedule(msg.sender, true, tinBuyer);
 
         buysPerUser[msg.sender].push(buyInfo(block.timestamp, weiPerTokenPerPhase[currentPhase], _amountBusd, _tokenAmount));
+    }
+
+    function buyCodeSubRefCapital(referralInfo memory _refInfo, uint256 _amountBusd, uint256 _tokenAmount) private{
+        referralInfo memory superInfo = getReferral(_refInfo.superCode);
+        require(superInfo.active, "The superior level referral is deactivated");
+        uint256 busdReferral = (((_amountBusd * _refInfo.totalPerc) / 100) * _refInfo.percBUSD) / 100;
+        uint256 busdProtocol = _amountBusd - busdReferral;
+
+        uint256 totalToDeductTokens = (_tokenAmount * _refInfo.totalPerc) / 100;
+        uint256 tinReferral = ((totalToDeductTokens) * _refInfo.percTokens) / 100;
+        uint256 tinBuyer = _tokenAmount - totalToDeductTokens;
+
+        if(busdReferral > 0){
+            uint256 busdSuper = (busdReferral * _refInfo.superCut) / 100;
+            IERC20(BUSD).transferFrom(msg.sender, superInfo.reciever, busdSuper);
+            IERC20(BUSD).transferFrom(msg.sender, _refInfo.reciever, busdReferral - busdSuper);
+        }
+        IERC20(BUSD).transferFrom(msg.sender, ICOWallet, busdProtocol);
+
+        if(tinReferral > 0){
+            uint256 tinSuper = (tinReferral * _refInfo.superCut) / 100;
+            TokenVesting.createVestingSchedule(superInfo.reciever, true, tinSuper);
+            TokenVesting.createVestingSchedule(_refInfo.reciever, true, tinReferral - tinSuper);
+        }
+        TokenVesting.createVestingSchedule(msg.sender, true, tinBuyer);
+
+        buysPerUser[msg.sender].push(buyInfo(block.timestamp, weiPerTokenPerPhase[currentPhase], _amountBusd, tinBuyer));
+    }
+
+    function buyCodeSubRefNormal(referralInfo memory _refInfo, uint256 _amountBusd, uint256 _tokenAmount) private{
+        referralInfo memory superInfo = getReferral(_refInfo.superCode);
+        require(superInfo.active, "The superior level referral is deactivated");
+        uint256 busdReferral = (((_amountBusd * _refInfo.totalPerc) / 100) * _refInfo.percBUSD) / 100;
+        uint256 busdProtocol = _amountBusd - busdReferral;
+
+        uint256 totalToDeductTokens = (_tokenAmount * _refInfo.totalPerc) / 100;
+        uint256 tinReferral = ((totalToDeductTokens) * _refInfo.percTokens) / 100;
+        uint256 tinBuyer = _tokenAmount;
+
+        if(busdReferral > 0){
+            uint256 busdSuper = (busdReferral * _refInfo.superCut) / 100;
+            IERC20(BUSD).transferFrom(msg.sender, superInfo.reciever, busdSuper);
+            IERC20(BUSD).transferFrom(msg.sender, _refInfo.reciever, busdReferral - busdSuper);
+        }
+        IERC20(BUSD).transferFrom(msg.sender, ICOWallet, busdProtocol);
+
+        if(tinReferral > 0){
+            uint256 tinSuper = (tinReferral * _refInfo.superCut) / 100;
+            TokenVesting.createVestingSchedule(superInfo.reciever, true, tinSuper);
+            TokenVesting.createVestingSchedule(_refInfo.reciever, true, tinReferral - tinSuper);
+        }
+        TokenVesting.createVestingSchedule(msg.sender, true, tinBuyer);
+
+        buysPerUser[msg.sender].push(buyInfo(block.timestamp, weiPerTokenPerPhase[currentPhase], _amountBusd, tinBuyer));
     }
 
     function getCountBuysPerUser(address user) public view returns(uint256){
@@ -182,7 +261,7 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
         return IERC20(BUSD).balanceOf(msg.sender);
     }
 
-    function addReferral(string calldata _code, bytes32 _refType, address _reciever, uint256 _totalPerc, uint256 _percTokens, uint256 _percBUSD) public onlyRole(ADMIN_ROLE){
+    function addReferral(string calldata _code, bytes32 _refType, address _reciever, uint256 _totalPerc, uint256 _percTokens, uint256 _percBUSD, address _superCode, uint256 _superCut) public onlyRole(ADMIN_ROLE){
         require(_percTokens + _percBUSD == 100, "Percent doesn't add to 100%");
         referrals[_code] = referralInfo(
                             _refType,
@@ -190,7 +269,9 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
                             _totalPerc,
                             _percTokens,
                             _percBUSD,
-                            true);
+                            true,
+                            _superCode,
+                            _superCut);
     }
 
     function deactivateReferral(string calldata _code) public onlyRole(ADMIN_ROLE){
@@ -220,11 +301,13 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
 
     function adjustWeiPerToken(uint256 _phase, uint256 _weiPerToken) public onlyRole(ADMIN_ROLE){
         weiPerTokenPerPhase[_phase] = _weiPerToken;
+        targetICOPerPhase[_phase] = totalTokensSalePerPhase[_phase] * _weiPerToken;
         emit weiPerTokenChanged(_phase, _weiPerToken);
     }
 
     function adjustTotalTokensSale(uint256 _phase, uint256 _totalTokensSale) public onlyRole(ADMIN_ROLE){
         totalTokensSalePerPhase[_phase] = _totalTokensSale;
+        targetICOPerPhase[_phase] = _totalTokensSale * weiPerTokenPerPhase[_phase];
         emit totalTokensSaleChanged(_phase, _totalTokensSale);
     }
 
@@ -254,6 +337,18 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
 
     function getReferral(string calldata code) public view returns(referralInfo memory){
         return referrals[code];
+    }
+
+
+    /**
+     * @dev Sets `adminRole` as ``role``'s admin role.
+     *
+     * Emits a {RoleAdminChanged} event.
+     */
+    function setRoleAdmin(bytes32 role, bytes32 adminRole) public onlyRole(DEFAULT_ADMIN_ROLE){
+        bytes32 previousAdminRole = getRoleAdmin(role);
+        _roles[role].adminRole = adminRole;
+        emit RoleAdminChanged(role, previousAdminRole, adminRole);
     }
 
 }
