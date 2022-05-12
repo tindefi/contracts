@@ -48,7 +48,7 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
         uint256 percTokens;
         uint256 percBUSD;
         bool active;
-        address superCode;
+        string superCode;
         uint256 superCut;
     }
 
@@ -195,7 +195,7 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
     }
 
     function buyCodeSubRefCapital(referralInfo memory _refInfo, uint256 _amountBusd, uint256 _tokenAmount) private{
-        referralInfo memory superInfo = getReferral(_refInfo.superCode);
+        referralInfo memory superInfo = referrals[_refInfo.superCode];
         require(superInfo.active, "The superior level referral is deactivated");
         uint256 busdReferral = (((_amountBusd * _refInfo.totalPerc) / 100) * _refInfo.percBUSD) / 100;
         uint256 busdProtocol = _amountBusd - busdReferral;
@@ -222,7 +222,7 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
     }
 
     function buyCodeSubRefNormal(referralInfo memory _refInfo, uint256 _amountBusd, uint256 _tokenAmount) private{
-        referralInfo memory superInfo = getReferral(_refInfo.superCode);
+        referralInfo memory superInfo = referrals[_refInfo.superCode];
         require(superInfo.active, "The superior level referral is deactivated");
         uint256 busdReferral = (((_amountBusd * _refInfo.totalPerc) / 100) * _refInfo.percBUSD) / 100;
         uint256 busdProtocol = _amountBusd - busdReferral;
@@ -261,7 +261,7 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
         return IERC20(BUSD).balanceOf(msg.sender);
     }
 
-    function addReferral(string calldata _code, bytes32 _refType, address _reciever, uint256 _totalPerc, uint256 _percTokens, uint256 _percBUSD, address _superCode, uint256 _superCut) public onlyRole(ADMIN_ROLE){
+    function addReferral(string calldata _code, bytes32 _refType, address _reciever, uint256 _totalPerc, uint256 _percTokens, uint256 _percBUSD, string memory _superCode, uint256 _superCut) public onlyRole(ADMIN_ROLE){
         require(_percTokens + _percBUSD == 100, "Percent doesn't add to 100%");
         referrals[_code] = referralInfo(
                             _refType,
@@ -346,9 +346,7 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
      * Emits a {RoleAdminChanged} event.
      */
     function setRoleAdmin(bytes32 role, bytes32 adminRole) public onlyRole(DEFAULT_ADMIN_ROLE){
-        bytes32 previousAdminRole = getRoleAdmin(role);
-        _roles[role].adminRole = adminRole;
-        emit RoleAdminChanged(role, previousAdminRole, adminRole);
+        _setRoleAdmin(role, adminRole);
     }
 
 }
