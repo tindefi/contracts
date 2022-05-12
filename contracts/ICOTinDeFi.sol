@@ -29,6 +29,7 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
 
     bytes32 public constant PAUSER_ROLE = keccak256("PAUSER_ROLE");
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant COLLAB_ROLE = keccak256("COLLAB_ROLE");
 
     bytes32 public constant NORMAL_REFERRAL = keccak256("NORMAL_REFERRAL");
     bytes32 public constant CAPITAL_REFERRAL = keccak256("CAPITAL_REFERRAL");
@@ -107,6 +108,7 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
         _grantRole(ADMIN_ROLE, msg.sender);
         _grantRole(PAUSER_ROLE, msg.sender);
         _setupRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _setupRole(COLLAB_ROLE, msg.sender);
 
         ICOWallet = _ICOWallet;
         icoEnded = false;
@@ -135,9 +137,9 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
         }else if(refInfo.refType == NORMAL_REFERRAL){
             buyCodeNormal(refInfo, amountBUSDToBuy, tokenAmount);
         }else if(refInfo.refType == SUB_REFERRAL_CAPITAL){
-            buyCodeNormal(refInfo, amountBUSDToBuy, tokenAmount);
+            buyCodeSubRefCapital(refInfo, amountBUSDToBuy, tokenAmount);
         }else if(refInfo.refType == SUB_REFERRAL_NORMAL){
-            buyCodeNormal(refInfo, amountBUSDToBuy, tokenAmount);
+            buyCodeSubRefNormal(refInfo, amountBUSDToBuy, tokenAmount);
         }
         else{
             TokenVesting.createVestingSchedule(msg.sender, true, tokenAmount);
@@ -261,7 +263,7 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
         return IERC20(BUSD).balanceOf(msg.sender);
     }
 
-    function addReferral(string calldata _code, bytes32 _refType, address _reciever, uint256 _totalPerc, uint256 _percTokens, uint256 _percBUSD, string memory _superCode, uint256 _superCut) public onlyRole(ADMIN_ROLE){
+    function addReferral(string calldata _code, bytes32 _refType, address _reciever, uint256 _totalPerc, uint256 _percTokens, uint256 _percBUSD, string memory _superCode, uint256 _superCut) public onlyRole(COLLAB_ROLE){
         require(_percTokens + _percBUSD == 100, "Percent doesn't add to 100%");
         referrals[_code] = referralInfo(
                             _refType,
