@@ -351,4 +351,10 @@ contract ICOTinDeFi is AccessControl, Pausable, ReentrancyGuard{
         _setRoleAdmin(role, adminRole);
     }
 
+
+    function setICOWallet(address newWallet) public onlyRole(DEFAULT_ADMIN_ROLE){
+        require(newWallet != address(0), "Cant set ICO wallet to address 0");
+        ICOWallet = newWallet;
+    }
+
 }
